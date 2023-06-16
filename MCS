@@ -1,0 +1,197 @@
+class Node:
+    previousvertices =[]
+    vertex = []
+    childvertices = []
+    
+
+def IsAdjacent( vertices, matrix, row, column ):
+     rowIndex = vertices.index( row )
+     columnIndex = vertices.index( column )
+     return matrix[rowIndex][columnIndex]
+
+def NeighborVertexIndex( matrix ):
+     return [ index for index, value in enumerate(matrix) if value == 1]
+
+def GetNonVisitedNeighborVertexIndex(matrix, visitedVertices):
+    return [ index for index, value in enumerate(matrix) if value == 1 and visitedVertices[index] == False ]
+
+def CanVertexAddedToGroup(vertex, existingvertices):
+    for i in existingvertices:
+        if not(IsGroupingRuleMatch(vertex, i)):
+            return False
+    return True
+
+def CanVertexAddedToBranch(vertex, parentvertices):
+    g = []
+    h = []
+    for i in parentvertices:
+        x = i.split(":")
+        g.append(x[0])
+        h.append(x[1])
+    x = vertex.split(":")
+    if (x[0] not in g) and (x[1] not in h):
+        return True
+    return False
+
+
+def GetHopDistance( shortestDistances ):
+    temp = {}
+    for i in shortestDistances:
+        if i in temp.keys():           
+            temp[i] += 1
+        else:             
+             temp[i] = 1
+        
+    return [ value / key for key, value in temp.items() if key != 0 ]
+
+def IsGroupingRuleMatch( vertex1, vertex2 ):
+    v1 = vertex1.split(":")
+    v2 = vertex2.split(":")
+    lp, lq = v1[0], v1[1]
+    lm, ln = v2[0], v2[1]
+    if lp[1:] != lm[1:] and lq[1:] != ln[1:]:
+        return True
+    return False
+
+def Grouping(vertices, NeighborVerticesIndex, previousvertices):
+    group = []
+    for i in range(0, len(NeighborVerticesIndex)):
+        group.append([])
+    for i in NeighborVerticesIndex:
+        if CanVertexAddedToBranch(vertices[i], previousvertices):
+            for g in group:
+                if len(g) == 0:                    
+                    g.append( vertices[i] )                
+                    break
+                else:                    
+                    if CanVertexAddedToGroup(vertices[i], g):
+                        g.append( vertices[i] )
+                        break
+    return group
+
+def DFS(rootNode, vertices, matrix, DFS_edges):
+    print("Root : ", rootNode.vertex)
+    neighborVertexIndex = []
+    for i in rootNode.vertex:
+        rootIndex = vertices.index(i)
+        neighborVertexIndex += NeighborVertexIndex(matrix[rootIndex])
+        rootNode.previousvertices.append(i)
+    print("child : ", Grouping(vertices, neighborVertexIndex, rootNode.previousvertices ))
+    for i in Grouping(vertices, neighborVertexIndex, rootNode.previousvertices ):
+        if len(i) > 0:
+            node = Node()
+            node.vertex = i[:]
+            node.previousvertices = rootNode.previousvertices
+            DFS_edges.append( ("&".join(rootNode.vertex), "&".join(node.vertex)) )
+            rootNode.childvertices.append( node )
+            DFS(node, vertices, matrix, DFS_edges)
+    
+    
+G_vertex = [ "C1", "C2", "C3", "C4" ]
+H_vertex = [ "C1", "C2", "C3", "C4", "C5"]
+G_edges = [ ("C1", "C2"), ("C2", "C3"), ("C2", "C4"), ("C3", "C4") ]
+H_edges = [ ("C1", "C2"), ("C2", "C3"), ("C2", "C5"), ("C3", "C4"), ("C3", "C5"), ("C4", "C5") ]
+G = []
+H = []
+
+for i in range( 0, len(G_vertex) ):
+     G.append( [0] * len(G_vertex) )
+
+for i in range( 0, len(H_vertex) ):
+     H.append( [0] * len(H_vertex) )
+
+for i in G_edges:
+     row = i[0]
+     column = i[1]
+     rowIndex = G_vertex.index( row )
+     columnIndex = G_vertex.index( column )
+     G[rowIndex][columnIndex] = 1
+     G[columnIndex][rowIndex] = 1
+
+for i in H_edges:
+     row = i[0]
+     column = i[1]
+     rowIndex = H_vertex.index( row )
+     columnIndex = H_vertex.index( column )
+     H[rowIndex][columnIndex] = 1
+     H[columnIndex][rowIndex] = 1
+
+TPG_vertex = []
+TPG_edges = []
+TPG = []
+for i in G_vertex:
+     for j in H_vertex:
+          if i[0] == j[0]:
+               TPG_vertex.append( i+":"+j )
+
+for i in range( 0, len(TPG_vertex) ):
+     TPG.append( [0] * len(TPG_vertex) )
+
+for i_index, i_value in enumerate(TPG_vertex):
+     for j_index, j_value in enumerate(TPG_vertex):
+          if j_index > i_index and i_value != j_value:
+               u1 = i_value.split(":")[0]
+               v1 = i_value.split(":")[1]
+               u2 = j_value.split(":")[0]
+               v2 = j_value.split(":")[1]
+               if IsAdjacent(G_vertex, G, u1, u2) and IsAdjacent(H_vertex, H, v1, v2):
+                    TPG_edges.append( (i_value, j_value) )
+                    TPG[i_index][j_index] = 1
+                    TPG[j_index][i_index] = 1
+
+nullVertex = []
+for index, value in enumerate(TPG):
+     if sum( value ) == 0:
+          nullVertex.append(index)
+for i in nullVertex:
+     TPG_vertex.pop(i)
+     TPG.pop(i)
+     for row in TPG:
+          row.pop(i)
+
+import networkx as nx  
+TPG_graph = nx.Graph().to_undirected() 
+TPG_graph.add_edges_from( TPG_edges )
+CR_values = { "Node" : [], "Closeness" : [], "Reach" : [], "CR" : [], "Eigen" : [], "Betweenness" : [], "degree":[], "katz":[],"harmonic":[],"subgraph":[] }
+closeness = nx.closeness_centrality(TPG_graph)
+shortestPathLegth = nx.all_pairs_shortest_path_length(TPG_graph)
+eigen = nx.eigenvector_centrality_numpy(TPG_graph)
+betweenness = nx.betweenness_centrality(TPG_graph)
+degree=nx.degree_centrality(TPG_graph)
+katz=nx.katz_centrality(TPG_graph)
+harmonic=nx.harmonic_centrality(TPG_graph)
+subgraph=nx.subgraph_centrality(TPG_graph)
+
+for i in TPG_vertex:
+    CR_values["Node"].append( i )
+    c = closeness[i]
+   # r = 1 + sum(GetHopDistance(shortestPathLegth[i].values()))
+    CR_values["Closeness"].append( c )
+    #CR_values["Reach"].append( r )
+    #CR_values["CR"].append( (c + r) / 2 )
+    CR_values["Eigen"].append( eigen[i] )
+    CR_values["Betweenness"].append( betweenness[i] )
+    CR_values["degree"].append( degree[i] )
+    CR_values["katz"].append( katz[i] )
+    CR_values["harmonic"].append( harmonic[i] )
+    CR_values["subgraph"].append( subgraph[i] )
+    
+
+ 
+print(CR_values["Node"],"\n Closeness:",CR_values["Closeness"], "\n Eigen:", CR_values["Eigen"],"\nBetweenness:",CR_values["Betweenness"],"\n")
+
+print("\n Degree:",CR_values["degree"])
+print("\nKatz:",CR_values["katz"], "\nHarmonic:",CR_values["harmonic"],"\nSubgraph",CR_values["subgraph"],"\n")
+
+print("\nsubgraph max\n")
+max_CR_value = max( CR_values["subgraph"] )
+rootVertex_index = CR_values["subgraph"].index( max_CR_value )
+rootVertex = TPG_vertex[rootVertex_index]
+DFS_edges = []
+rootNode = Node()
+rootNode.vertex.append(rootVertex)
+DFS(rootNode, TPG_vertex, TPG, DFS_edges)
+
+outputGraph = nx.Graph().to_undirected() 
+outputGraph.add_edges_from( DFS_edges )
+nx.draw_networkx(outputGraph) 
